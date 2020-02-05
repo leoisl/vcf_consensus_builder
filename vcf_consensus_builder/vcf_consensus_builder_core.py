@@ -144,7 +144,7 @@ def consensus(ref_fasta,
     ref_seq_records: List[SeqRecord] = replace_low_depth_positions(**locals())
     df_vcf_tsv: pd.DataFrame = read_vcf(vcf_file)
     logger.debug(f'df_vcf_tsv shape: {df_vcf_tsv.shape}')
-    if sample_name is None:
+
     consensus_seqs: List[str] = create_consensus_sequences(ref_seq_records, df_vcf_tsv)
     with open(output_fasta, 'w') if not isinstance(output_fasta, TextIOWrapper) else output_fasta as f:
         f.write(f'>{sample_name} ref="{ref_seq_record.id} {ref_seq_record.description}"\n')

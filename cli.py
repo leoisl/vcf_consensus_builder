@@ -29,8 +29,6 @@ from vcf_consensus_builder.vcf_consensus_builder_core import consensus
               help='Low coverage character ("N" by default)')
 @click.option('--no-cov-char', type=str, default='-',
               help='No coverage character ("-" by default)')
-@click.option('--sample-name', type=str, required=False,
-              help='Optional sample name for output fasta header ID')
 @click.option('-V', '--verbose', default=0, count=True, help='Verbosity of logging')
 def main(vcf_file,
          depths_file,
@@ -40,7 +38,6 @@ def main(vcf_file,
          no_coverage,
          low_cov_char,
          no_cov_char,
-         sample_name='SAMPLE',
          verbose=0):
     """Build a consensus sequence from a VCF and ref sequence masking low and no coverage positions."""
     init_console_logger(verbose)
@@ -51,8 +48,7 @@ def main(vcf_file,
               low_coverage=low_coverage,
               no_coverage=no_coverage,
               low_cov_char=low_cov_char,
-              no_cov_char=no_cov_char,
-              sample_name=sample_name)
+              no_cov_char=no_cov_char)
 
 
 if __name__ == "__main__":
