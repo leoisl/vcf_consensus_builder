@@ -6,7 +6,7 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
-from vcf_consensus_builder.io import read_vcf
+from vcf_consensus_builder.vcf_io import (read_vcf, VCF_COL_DTYPES)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,6 @@ def consensus(ref_fasta,
     df_vcf_tsv: pd.DataFrame = read_vcf(vcf_file)
     logger.debug(f'df_vcf_tsv shape: {df_vcf_tsv.shape}')
     if sample_name is None:
-        from .io import VCF_COL_DTYPES
         sample_name = list(set(df_vcf_tsv.columns) - set(VCF_COL_DTYPES.keys()))[0]
     consensus_seq: str = create_cons_seq(str(ref_seq_record.seq), df_vcf_tsv)
     logger.debug(f'consensus_seq length: {len(consensus_seq)}')

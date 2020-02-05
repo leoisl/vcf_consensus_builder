@@ -3,8 +3,7 @@ import sys
 import click
 
 from vcf_consensus_builder.log import init_console_logger
-from .vcf_consensus_builder import consensus
-
+from vcf_consensus_builder.vcf_consensus_builder_core import consensus
 
 @click.command()
 @click.option('-v', '--vcf-file',
