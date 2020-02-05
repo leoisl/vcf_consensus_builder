@@ -10,6 +10,9 @@ from Bio.Seq import MutableSeq
 from vcf_consensus_builder.vcf_io import (read_vcf, VCF_COL_DTYPES)
 
 from typing import List
+
+import re
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,10 +114,15 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
             logger.warning(
                 f'Skipping variant (ALT={curr_var.ALT}) at {curr_var.POS} (previous position ({prev_position}) >= POS)')
             continue
+
+        sample_info = curr_var[-1]
+        GT = int(re.search(r'\d+', sample_info).group())
+        alleles = [curr_var.REF] + curr_var.ALT.split(",")
+        alt = alleles[GT]
         segment, prev_position = consensus_segment(seq=seq,
                                                    curr_position=curr_var.POS,
                                                    ref_variant=curr_var.REF,
-                                                   alt_variant=curr_var.ALT,
+                                                   alt_variant=alt,
                                                    prev_position=prev_position)
         segments.append(segment)
     # append the rest of the reference sequence
