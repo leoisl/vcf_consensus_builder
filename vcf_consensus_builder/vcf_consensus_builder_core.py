@@ -133,7 +133,6 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
 def consensus(ref_fasta,
               vcf_file,
               depths_file,
-              sample_name,
               output_fasta,
               no_coverage: int = 0,
               low_coverage: int = 5,
