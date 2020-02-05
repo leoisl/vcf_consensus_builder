@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 from Bio import SeqIO
 from click.testing import CliRunner
 
-from vcf_consensus_builder import cli
+import cli
 
 VCF_DEL = 'tests/data/test.vcf'
 VCF_INS = 'tests/data/test2.vcf'
