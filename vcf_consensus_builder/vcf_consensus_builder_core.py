@@ -147,8 +147,6 @@ def consensus(ref_fasta,
 
     consensus_seqs: List[str] = create_consensus_sequences(ref_seq_records, df_vcf_tsv)
     with open(output_fasta, 'w') if not isinstance(output_fasta, TextIOWrapper) else output_fasta as f:
-        f.write(f'>{sample_name} ref="{ref_seq_record.id} {ref_seq_record.description}"\n')
-        # 70 characters per line to keep in line with NCBI FASTA output
-        chars_per_line = 70
-        for i in range(0, len(consensus_seq), chars_per_line):
-            f.write(f'{consensus_seq[i:i + chars_per_line]}\n')
+        for ref_seq_record, consensus_seq in zip(ref_seq_records, consensus_seqs):
+            print(f'>{ref_seq_record.id}', file=f)
+            print(consensus_seq, file=f)
