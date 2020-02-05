@@ -22,7 +22,7 @@ from vcf_consensus_builder.vcf_consensus_builder_core import consensus
               default=sys.stdout,
               help='Output consensus sequence FASTA file path (default write to stdout)')
 @click.option('--low-coverage', type=int, default=5,
-              help='Low coverage threshold; replace positions with less than this depth with "N" by default')
+              help='Low coverage threshold; replace positions with less than or equal this depth with "N" by default')
 @click.option('--no-coverage', type=int, default=0,
               help='No coverage threshold; replace positions with less than or equal this depth with "-" by default')
 @click.option('--low-cov-char', type=str, default='N',
