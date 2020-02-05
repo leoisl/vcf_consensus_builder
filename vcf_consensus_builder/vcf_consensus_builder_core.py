@@ -110,11 +110,7 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
     segments = []
     prev_position = 0
     for _, curr_var in df_vcf.iterrows():
-        if prev_position > curr_var.POS - 1:
-            logger.warning(
-                f'Skipping variant (ALT={curr_var.ALT}) at {curr_var.POS} (previous position ({prev_position}) >= POS)')
-            continue
-
+        assert prev_position <= curr_var.POS - 1, f"Error in the VCF: is the position good at this record? {str(curr_var)}"
         sample_info = curr_var[-1]
         GT = int(re.search(r'\d+', sample_info).group())
         alleles = [curr_var.REF] + curr_var.ALT.split(",")
