@@ -5,10 +5,21 @@ from io import TextIOWrapper
 import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from Bio.Seq import MutableSeq
 
 from vcf_consensus_builder.vcf_io import (read_vcf, VCF_COL_DTYPES)
 
+from typing import List
 logger = logging.getLogger(__name__)
+
+
+def mutate_seqs_according_given_positions(seq_records: List[SeqRecord], mutable_seqs: List[MutableSeq],
+                                          contig_and_position: pd.DataFrame, replacement_char: str) -> None:
+    for seq_record, mutable_seq in zip(seq_records, mutable_seqs):
+        positions_for_this_seq = contig_and_position[contig_and_position.contig == seq_record.id].position
+        for position in positions_for_this_seq:
+            mutable_seq[position] = replacement_char
+
 
 
 def replace_low_depth_positions(ref_fasta: str,
@@ -18,7 +29,7 @@ def replace_low_depth_positions(ref_fasta: str,
                                 no_cov_char: str = '-',
                                 low_cov_char: str = 'N',
                                 *args,
-                                **kwargs) -> SeqRecord:
+                                **kwargs) -> List[SeqRecord]:
     """Replace no and low coverage depth positions with specified characters.
 
     Args:
@@ -35,27 +46,29 @@ def replace_low_depth_positions(ref_fasta: str,
     assert len(no_cov_char) == 1, '"no_cov_char" must be a str of length of 1, e.g. "-"/single dash character.'
     assert len(low_cov_char) == 1, '"low_cov_char" must be a str of length of 1, e.g. "-"/single dash character.'
     assert no_coverage <= low_coverage, '"low_coverage" must be greater than or equal to "no_coverage"'
-    seq_rec = SeqIO.read(ref_fasta,
-                         format='fasta')
-    logger.debug(f'seq_rec length: {len(seq_rec)}')
+    seq_records: List[SeqRecord] = list(SeqIO.parse(ref_fasta,
+                         format='fasta'))
+    logger.debug(f'Number of contigs: {len(seq_records)}')
     df: pd.DataFrame = pd.read_csv(depths_file,
                                    header=None,
-                                   names=['genome', 'position', 'coverage'], sep='\t')
-    no_coverage_positions: pd.Series = df[df.coverage <= no_coverage].position - 1
-    logger.info(f'No ({no_coverage}X) coverage positions: {no_coverage_positions.size}')
-    low_coverage_positions: pd.Series = df[(df.coverage > no_coverage) & (df.coverage < low_coverage)].position - 1
-    logger.info(f'Low (<{low_coverage}X) coverage positions: {low_coverage_positions.size}')
-    if low_coverage_positions.size == 0 and no_coverage_positions.size == 0:
+                                   names=['contig', 'position', 'coverage'], sep='\t')
+    df.position = df.position - 1 # 0-based indexing fix
+
+    no_coverage_positions: pd.DataFrame = df[df.coverage <= no_coverage][["contig", "position"]]
+    logger.info(f'No ({no_coverage}X) coverage positions: {len(no_coverage_positions)}')
+    low_coverage_positions: pd.DataFrame = df[(df.coverage > no_coverage) & (df.coverage < low_coverage)][["contig", "position"]]
+    logger.info(f'Low (<{low_coverage}X) coverage positions: {len(low_coverage_positions)}')
+    if len(low_coverage_positions) == 0 and len(no_coverage_positions) == 0:
         logger.info(f'No positions with low (<{low_coverage}X) or no ({no_coverage}X) coverage. '
                     f'No need to mask any positions in the reference sequence')
-        return seq_rec
-    mutable_seq = seq_rec.seq.tomutable()
-    for position in low_coverage_positions:
-        mutable_seq[position] = low_cov_char
-    for position in no_coverage_positions:
-        mutable_seq[position] = no_cov_char
-    seq_rec.seq = mutable_seq.toseq()
-    return seq_rec
+        return seq_records
+    mutable_seqs: List[MutableSeq] = [seq_record.seq.tomutable() for seq_record in seq_records]
+    mutate_seqs_according_given_positions(seq_records, mutable_seqs, low_coverage_positions, low_cov_char)
+    mutate_seqs_according_given_positions(seq_records, mutable_seqs, no_coverage_positions, no_cov_char)
+
+    mutated_seq_records = [SeqRecord(seq=mutable_seq.toseq(), id=seq_record.id, name=seq_record.name, description=seq_record.description)
+                           for mutable_seq, seq_record in zip(mutable_seqs, seq_records)]
+    return mutated_seq_records
 
 
 def consensus_segment(seq: str,
@@ -70,6 +83,15 @@ def consensus_segment(seq: str,
                     f'(n={len(alt_variant)} VS REF="{ref_variant}" (n={len(ref_variant)})')
         logger.info(f'Previous position={prev_position} | curr_position={curr_position} | next={next_position}')
     return segment_seq, next_position
+
+
+def create_consensus_sequences(ref_seq_records: List[SeqRecord], df_vcf_tsv: pd.DataFrame) -> List[str]:
+    consensus_sequences: List[str] = []
+    for ref_seq_record in ref_seq_records:
+        df_vcf_tsv_for_this_record = df_vcf_tsv[df_vcf_tsv.CHROM == ref_seq_record.id]
+        consensus_sequence = create_cons_seq(str(ref_seq_record.seq), df_vcf_tsv_for_this_record)
+        consensus_sequences.append(consensus_sequence)
+    return  consensus_sequences
 
 
 def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
@@ -111,17 +133,11 @@ def consensus(ref_fasta,
               low_cov_char: str = 'N',
               *args,
               **kwargs):
-    ref_seq_record: SeqRecord = replace_low_depth_positions(**locals())
-
-    if logger.isEnabledFor(logging.DEBUG):
-        from collections import Counter
-        logger.debug(f'ref_seq_record: {Counter(str(ref_seq_record.seq)).most_common()}')
+    ref_seq_records: List[SeqRecord] = replace_low_depth_positions(**locals())
     df_vcf_tsv: pd.DataFrame = read_vcf(vcf_file)
     logger.debug(f'df_vcf_tsv shape: {df_vcf_tsv.shape}')
     if sample_name is None:
-        sample_name = list(set(df_vcf_tsv.columns) - set(VCF_COL_DTYPES.keys()))[0]
-    consensus_seq: str = create_cons_seq(str(ref_seq_record.seq), df_vcf_tsv)
-    logger.debug(f'consensus_seq length: {len(consensus_seq)}')
+    consensus_seqs: List[str] = create_consensus_sequences(ref_seq_records, df_vcf_tsv)
     with open(output_fasta, 'w') if not isinstance(output_fasta, TextIOWrapper) else output_fasta as f:
         f.write(f'>{sample_name} ref="{ref_seq_record.id} {ref_seq_record.description}"\n')
         # 70 characters per line to keep in line with NCBI FASTA output

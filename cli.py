@@ -17,7 +17,7 @@ from vcf_consensus_builder.vcf_consensus_builder_core import consensus
 @click.option('-r', '--ref-fasta',
               type=click.Path(exists=True),
               required=True,
-              help='Reference sequence FASTA file (single sequence entry only!)')
+              help='Reference sequence FASTA file')
 @click.option('-o', '--output-fasta',
               default=sys.stdout,
               help='Output consensus sequence FASTA file path (default write to stdout)')
