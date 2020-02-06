@@ -118,7 +118,6 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
     segments = []
     prev_position = 0
     for _, curr_var in df_vcf.iterrows():
-        assert prev_position <= curr_var.POS - 1, f"Error in the VCF: is the position good at this record? {str(curr_var)}"
         sample_info = curr_var[-1]
         GT = get_gt_from_sample_info(sample_info)
         if GT >= 0:
