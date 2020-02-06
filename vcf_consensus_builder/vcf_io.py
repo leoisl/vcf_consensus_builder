@@ -7,9 +7,9 @@ import pandas as pd
 VCF_COL_DTYPES: Dict = dict(CHROM='category',
                             POS='uint32',
                             ID='category',
-                            REF='category',
-                            ALT='category',
-                            QUAL=float,
+                            REF=str,
+                            ALT=str,
+                            QUAL=str,
                             FILTER='category',
                             INFO=str,
                             FORMAT=str)
