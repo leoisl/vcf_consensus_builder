@@ -97,6 +97,14 @@ def create_consensus_sequences(ref_seq_records: List[SeqRecord], df_vcf_tsv: pd.
     return  consensus_sequences
 
 
+def get_gt_from_sample_info(sample_info: str):
+    gt_as_string = re.search(r'^(.+?)[/:]??', sample_info).group(1)
+    try:
+        gt_as_int = int(gt_as_string)
+        return gt_as_int
+    except ValueError:
+        return -1
+
 def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
     """Create consensus sequence given a reference sequence and a table of a Snippy vcf_to_tab
 
@@ -112,15 +120,16 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
     for _, curr_var in df_vcf.iterrows():
         assert prev_position <= curr_var.POS - 1, f"Error in the VCF: is the position good at this record? {str(curr_var)}"
         sample_info = curr_var[-1]
-        GT = int(re.search(r'\d+', sample_info).group())
-        alleles = [curr_var.REF] + curr_var.ALT.split(",")
-        alt = alleles[GT]
-        segment, prev_position = consensus_segment(seq=seq,
-                                                   curr_position=curr_var.POS,
-                                                   ref_variant=curr_var.REF,
-                                                   alt_variant=alt,
-                                                   prev_position=prev_position)
-        segments.append(segment)
+        GT = get_gt_from_sample_info(sample_info)
+        if GT >= 0:
+            alleles = [curr_var.REF] + curr_var.ALT.split(",")
+            alt = alleles[GT]
+            segment, prev_position = consensus_segment(seq=seq,
+                                                       curr_position=curr_var.POS,
+                                                       ref_variant=curr_var.REF,
+                                                       alt_variant=alt,
+                                                       prev_position=prev_position)
+            segments.append(segment)
     # append the rest of the reference sequence
     segments.append(seq[prev_position:])
     return ''.join(segments)
