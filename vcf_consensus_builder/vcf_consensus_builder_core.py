@@ -7,7 +7,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import MutableSeq
 
-from vcf_consensus_builder.vcf_io import (read_vcf, VCF_COL_DTYPES)
+from vcf_consensus_builder.vcf_io import read_vcf
 
 from typing import List
 
