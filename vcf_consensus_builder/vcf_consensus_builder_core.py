@@ -143,5 +143,5 @@ def consensus(ref_fasta,
     consensus_seqs: List[str] = create_consensus_sequences(ref_seq_records, df_vcf_tsv)
     with open(output_fasta, 'w') if not isinstance(output_fasta, TextIOWrapper) else output_fasta as f:
         for ref_seq_record, consensus_seq in zip(ref_seq_records, consensus_seqs):
-            print(f'>{ref_seq_record.id}', file=f)
+            print(f'>{ref_seq_record.description}', file=f)
             print(consensus_seq, file=f)
