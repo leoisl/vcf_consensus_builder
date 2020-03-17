@@ -6,6 +6,7 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import MutableSeq
+from intervaltree import Interval, IntervalTree
 
 from vcf_consensus_builder.vcf_io import read_vcf
 
@@ -79,22 +80,15 @@ def consensus_segment(seq: str,
                       ref_variant: str,
                       alt_variant: str,
                       prev_position: int = 0) -> (str, int):
-    segment_seq = seq[prev_position:(curr_position - 1)] + alt_variant
+    segment_before_curr_position = seq[prev_position:(curr_position - 1)]
+    segment_on_curr_position = seq[(curr_position - 1):]
+    ref_variant_is_correct = segment_on_curr_position.startswith(ref_variant)
+    if not ref_variant_is_correct:
+        raise Exception(f"Error: {ref_variant} expected in the start of {segment_on_curr_position}")
+
+    segment_seq = segment_before_curr_position + alt_variant
     next_position = curr_position + len(ref_variant) - 1
-    if len(alt_variant) != len(ref_variant):
-        logger.info(f'At position {curr_position}, ALT="{alt_variant}" '
-                    f'(n={len(alt_variant)} VS REF="{ref_variant}" (n={len(ref_variant)})')
-        logger.info(f'Previous position={prev_position} | curr_position={curr_position} | next={next_position}')
     return segment_seq, next_position
-
-
-def create_consensus_sequences(ref_seq_records: List[SeqRecord], df_vcf_tsv: pd.DataFrame) -> List[str]:
-    consensus_sequences: List[str] = []
-    for ref_seq_record in ref_seq_records:
-        df_vcf_tsv_for_this_record = df_vcf_tsv[df_vcf_tsv.CHROM == ref_seq_record.id]
-        consensus_sequence = create_cons_seq(str(ref_seq_record.seq), df_vcf_tsv_for_this_record)
-        consensus_sequences.append(consensus_sequence)
-    return  consensus_sequences
 
 
 def get_gt_from_sample_info(sample_info: str):
@@ -105,7 +99,94 @@ def get_gt_from_sample_info(sample_info: str):
     except ValueError:
         return -1
 
-def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
+class InconsistentVCFException(Exception):
+    pass
+
+class MultipleChromException(Exception):
+    pass
+
+def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
+    only_a_single_chrom_in_the_df = len(df_vcf["CHROM"].unique()) == 1
+    if not only_a_single_chrom_in_the_df:
+        raise MultipleChromException
+
+
+    interval_tree = IntervalTree()
+    intervals_already_inserted = set() # this is done because it is easier to query than interval_tree for exact intervals and without data
+    for _, curr_var in df_vcf.iterrows():
+        start_pos = curr_var.POS
+        ref = curr_var.REF
+        end_pos = start_pos + len(ref)
+        sample_info = curr_var[-1]
+        GT = get_gt_from_sample_info(sample_info)
+        variant_should_not_be_applied = GT==-1 or GT==0
+        if variant_should_not_be_applied:
+            continue
+
+        alleles = [curr_var.REF] + curr_var.ALT.split(",")
+        alt = alleles[GT]
+        data = (ref, alt)
+        interval_already_in_tree = (start_pos, end_pos) in intervals_already_inserted
+        if interval_already_in_tree:
+            raise InconsistentVCFException(f"[FATAL] There are more than one VCF record with POS = {start_pos} and REF = {ref}")
+        interval_tree[start_pos:end_pos] = data
+        intervals_already_inserted.add((start_pos, end_pos))
+
+    return interval_tree
+
+
+def ensure_there_are_no_overlapping_records(tree):
+    for interval in tree:
+        overlaps = tree.overlap(interval.begin, interval.end)
+        does_not_overlap_with_any_other_interval = len(overlaps) == 1
+        if not does_not_overlap_with_any_other_interval:
+            raise InconsistentVCFException(f"{interval} overlaps with {overlaps}")
+
+
+def get_super_records_from_interval_tree(interval_tree):
+    all_envelopped_intervals = IntervalTree()
+    for interval in interval_tree:
+        for enveloped_interval in interval_tree.envelop(interval):
+            if interval != enveloped_interval:
+                envelopped_interval_is_consistent = \
+                    interval.begin == enveloped_interval.begin and \
+                    interval.end > enveloped_interval.end and \
+                    interval.data[0].startswith(enveloped_interval.data[0]) and \
+                    interval.data[1].startswith(enveloped_interval.data[1])
+
+                if not envelopped_interval_is_consistent:
+                    raise InconsistentVCFException(f"[FATAL]: {enveloped_interval} is not consistent with {interval}")
+                all_envelopped_intervals.add(enveloped_interval)
+
+    super_records = interval_tree - all_envelopped_intervals
+    return super_records
+
+
+def get_records_to_be_applied(df_vcf):
+    interval_tree_with_valid_records = get_interval_tree_for_vcf_of_a_single_chrom(df_vcf)
+    interval_tree_with_records_to_be_applied = get_super_records_from_interval_tree(interval_tree_with_valid_records)
+    ensure_there_are_no_overlapping_records(interval_tree_with_records_to_be_applied)
+    records_to_be_applied = []
+    for interval in sorted(interval_tree_with_records_to_be_applied):
+        records_to_be_applied.append({
+            "begin": interval.begin,
+            "end": interval.end,
+            "ref": interval.data[0],
+            "alt": interval.data[1]
+        })
+    return records_to_be_applied
+
+
+def create_consensus_sequences(ref_seq_records: List[SeqRecord], df_vcf_tsv: pd.DataFrame) -> List[str]:
+    consensus_sequences: List[str] = []
+    for ref_seq_record in ref_seq_records:
+        df_vcf_tsv_for_this_record = df_vcf_tsv[df_vcf_tsv.CHROM == ref_seq_record.id]
+        records_to_be_applied = get_records_to_be_applied(df_vcf_tsv_for_this_record)
+        consensus_sequence = create_cons_seq(str(ref_seq_record.seq), records_to_be_applied)
+        consensus_sequences.append(consensus_sequence)
+    return consensus_sequences
+
+def create_cons_seq(seq: str, records_to_be_applied: List) -> str:
     """Create consensus sequence given a reference sequence and a table of a Snippy vcf_to_tab
 
     Args:
@@ -117,18 +198,13 @@ def create_cons_seq(seq: str, df_vcf: pd.DataFrame) -> str:
     """
     segments = []
     prev_position = 0
-    for _, curr_var in df_vcf.iterrows():
-        sample_info = curr_var[-1]
-        GT = get_gt_from_sample_info(sample_info)
-        if GT >= 0:
-            alleles = [curr_var.REF] + curr_var.ALT.split(",")
-            alt = alleles[GT]
-            segment, prev_position = consensus_segment(seq=seq,
-                                                       curr_position=curr_var.POS,
-                                                       ref_variant=curr_var.REF,
-                                                       alt_variant=alt,
-                                                       prev_position=prev_position)
-            segments.append(segment)
+    for record in records_to_be_applied:
+        segment, prev_position = consensus_segment(seq=seq,
+                                                   curr_position=record["begin"],
+                                                   ref_variant=record["ref"],
+                                                   alt_variant=record["alt"],
+                                                   prev_position=prev_position)
+        segments.append(segment)
     # append the rest of the reference sequence
     segments.append(seq[prev_position:])
     return ''.join(segments)
@@ -145,7 +221,8 @@ def consensus(ref_fasta,
               *args,
               **kwargs):
     ref_seq_records: List[SeqRecord] = replace_low_depth_positions(**locals())
-    df_vcf_tsv: pd.DataFrame = read_vcf(vcf_file)
+    with open(vcf_file) as fh:
+        df_vcf_tsv: pd.DataFrame = read_vcf(fh)
     logger.debug(f'df_vcf_tsv shape: {df_vcf_tsv.shape}')
 
     consensus_seqs: List[str] = create_consensus_sequences(ref_seq_records, df_vcf_tsv)
