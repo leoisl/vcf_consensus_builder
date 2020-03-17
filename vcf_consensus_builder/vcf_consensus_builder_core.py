@@ -75,6 +75,9 @@ def replace_low_depth_positions(ref_fasta: str,
     return mutated_seq_records
 
 
+class RefIsWrongException(Exception):
+    pass
+
 def consensus_segment(seq: str,
                       curr_position: int,
                       ref_variant: str,
@@ -84,7 +87,7 @@ def consensus_segment(seq: str,
     segment_on_curr_position = seq[(curr_position - 1):]
     ref_variant_is_correct = segment_on_curr_position.startswith(ref_variant)
     if not ref_variant_is_correct:
-        raise Exception(f"Error: {ref_variant} expected in the start of {segment_on_curr_position}")
+        raise RefIsWrongException(f"Error: {ref_variant} expected in the start of {segment_on_curr_position}")
 
     segment_seq = segment_before_curr_position + alt_variant
     next_position = curr_position + len(ref_variant) - 1
@@ -105,11 +108,12 @@ class InconsistentVCFException(Exception):
 class MultipleChromException(Exception):
     pass
 
+nb_of_records_calling_REF = 0
+nb_of_records_calling_null = 0
 def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
-    only_a_single_chrom_in_the_df = len(df_vcf["CHROM"].unique()) == 1
+    only_a_single_chrom_in_the_df = len(df_vcf["CHROM"].unique()) <= 1
     if not only_a_single_chrom_in_the_df:
-        raise MultipleChromException
-
+        raise MultipleChromException(f"df_vcf = {df_vcf}")
 
     interval_tree = IntervalTree()
     intervals_already_inserted = set() # this is done because it is easier to query than interval_tree for exact intervals and without data
@@ -121,6 +125,11 @@ def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
         GT = get_gt_from_sample_info(sample_info)
         variant_should_not_be_applied = GT==-1 or GT==0
         if variant_should_not_be_applied:
+            global nb_of_records_calling_REF, nb_of_records_calling_null
+            if GT==-1:
+                nb_of_records_calling_null += 1
+            else:
+                nb_of_records_calling_REF += 1
             continue
 
         alleles = [curr_var.REF] + curr_var.ALT.split(",")
@@ -142,23 +151,29 @@ def ensure_there_are_no_overlapping_records(tree):
         if not does_not_overlap_with_any_other_interval:
             raise InconsistentVCFException(f"{interval} overlaps with {overlaps}")
 
-
+nb_envelopped_records = 0
 def get_super_records_from_interval_tree(interval_tree):
     all_envelopped_intervals = IntervalTree()
     for interval in interval_tree:
         for enveloped_interval in interval_tree.envelop(interval):
             if interval != enveloped_interval:
+                enveloped_interval_ref = enveloped_interval.data[0]
+                pos_offset = enveloped_interval.begin - interval.begin
+                interval_ref = interval.data[0]
+                interval_ref_at_enveloped_interval_ref = interval_ref[pos_offset : pos_offset+len(enveloped_interval_ref)]
                 envelopped_interval_is_consistent = \
-                    interval.begin == enveloped_interval.begin and \
-                    interval.end > enveloped_interval.end and \
-                    interval.data[0].startswith(enveloped_interval.data[0]) and \
-                    interval.data[1].startswith(enveloped_interval.data[1])
+                    interval.begin <= enveloped_interval.begin and \
+                    interval.end >= enveloped_interval.end and \
+                    enveloped_interval_ref == interval_ref_at_enveloped_interval_ref
 
                 if not envelopped_interval_is_consistent:
                     raise InconsistentVCFException(f"[FATAL]: {enveloped_interval} is not consistent with {interval}")
                 all_envelopped_intervals.add(enveloped_interval)
 
     super_records = interval_tree - all_envelopped_intervals
+
+    global nb_envelopped_records
+    nb_envelopped_records += len(all_envelopped_intervals)
     return super_records
 
 
@@ -230,3 +245,12 @@ def consensus(ref_fasta,
         for ref_seq_record, consensus_seq in zip(ref_seq_records, consensus_seqs):
             print(f'>{ref_seq_record.description}', file=f)
             print(consensus_seq, file=f)
+
+    total_number_of_records = len(df_vcf_tsv)
+    global nb_of_records_calling_REF, nb_of_records_calling_null, nb_envelopped_records
+    nb_records_applied = total_number_of_records - nb_of_records_calling_null - nb_of_records_calling_REF - nb_envelopped_records
+    logger.info(f"{total_number_of_records} records in VCF.")
+    logger.info(f"{nb_of_records_calling_null} records ({nb_of_records_calling_null/total_number_of_records*100}%) not applied (genotype is null).")
+    logger.info(f"{nb_of_records_calling_REF} records ({nb_of_records_calling_REF/total_number_of_records*100}%) not applied (genotype is REF).")
+    logger.info(f"{nb_envelopped_records} records ({nb_envelopped_records/total_number_of_records*100}%) not applied (envelopped in another record).")
+    logger.info(f"{nb_records_applied} ({nb_records_applied/total_number_of_records*100}%) records applied.")

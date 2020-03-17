@@ -13,9 +13,9 @@ from vcf_consensus_builder.vcf_consensus_builder_core import consensus
 import cli
 import unittest
 
-VCF = 'tests/data/test.vcf'
-REF_FASTA = 'tests/data/ref.fa'
-DEPTHS = 'tests/data/test-depths.tsv'
+VCF = 'data/test.vcf'
+REF_FASTA = 'data/ref.fa'
+DEPTHS = 'data/test-depths.tsv'
 OUTPUT_FASTA = 'out.fa'
 
 

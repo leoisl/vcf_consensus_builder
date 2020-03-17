@@ -38,6 +38,14 @@ ref_2	3	.	A	C	228	.	DP=9;VDB=0.000651286;SGB=-0.693147;RPB=1;MQB=1;MQSB=0.110884
         df = read_vcf(vcf)
         self.assertRaises(MultipleChromException, get_interval_tree_for_vcf_of_a_single_chrom, df)
 
+    def test_get_interval_tree_for_vcf___no_record___should_not_fail(self):
+        vcf = StringIO(
+            """#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample1
+            """)
+        df = read_vcf(vcf)
+        actual = get_interval_tree_for_vcf_of_a_single_chrom(df)
+        expected = IntervalTree()
+        self.assertEqual(actual, expected)
 
 
     def test_get_interval_tree_for_vcf___contain_duplicates_but_GT_is_null_or_ref_and_are_disconsidered___should_be_ok(self):
