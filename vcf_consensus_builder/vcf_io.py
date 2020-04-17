@@ -26,5 +26,6 @@ def read_vcf(fh) -> pd.DataFrame:
                        comment='#',
                        header=None,
                        names=vcf_cols,
-                       dtype=VCF_COL_DTYPES)
+                       dtype=VCF_COL_DTYPES,
+                       na_filter=False)
     return df
