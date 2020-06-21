@@ -137,7 +137,8 @@ def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
         data = (ref, alt)
         interval_already_in_tree = (start_pos, end_pos) in intervals_already_inserted
         if interval_already_in_tree:
-            raise InconsistentVCFException(f"[FATAL] There are more than one VCF record with POS = {start_pos} and REF = {ref}")
+            # raise InconsistentVCFException(f"[FATAL] There are more than one VCF record with POS = {start_pos} and REF = {ref}")
+            continue  # TODO: samtools bugs on this... For now, let's just ignore this interval. Check if we can do better later...
         interval_tree[start_pos:end_pos] = data
         intervals_already_inserted.add((start_pos, end_pos))
 
