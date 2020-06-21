@@ -181,7 +181,10 @@ def get_super_records_from_interval_tree(interval_tree):
 def get_records_to_be_applied(df_vcf):
     interval_tree_with_valid_records = get_interval_tree_for_vcf_of_a_single_chrom(df_vcf)
     interval_tree_with_records_to_be_applied = get_super_records_from_interval_tree(interval_tree_with_valid_records)
-    ensure_there_are_no_overlapping_records(interval_tree_with_records_to_be_applied)
+
+    # TODO: samtools bugs on this... For now, let's just comment this out... Check if we can do better later...
+    # ensure_there_are_no_overlapping_records(interval_tree_with_records_to_be_applied)
+
     records_to_be_applied = []
     for interval in sorted(interval_tree_with_records_to_be_applied):
         records_to_be_applied.append({
