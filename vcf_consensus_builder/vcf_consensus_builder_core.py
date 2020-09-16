@@ -254,7 +254,7 @@ def consensus(ref_fasta,
     global nb_of_records_calling_REF, nb_of_records_calling_null, nb_envelopped_records
     nb_records_applied = total_number_of_records - nb_of_records_calling_null - nb_of_records_calling_REF - nb_envelopped_records
     logger.info(f"{total_number_of_records} records in VCF.")
-    logger.info(f"{nb_of_records_calling_null} records ({nb_of_records_calling_null/total_number_of_records*100}%) not applied (genotype is null).")
-    logger.info(f"{nb_of_records_calling_REF} records ({nb_of_records_calling_REF/total_number_of_records*100}%) not applied (genotype is REF).")
-    logger.info(f"{nb_envelopped_records} records ({nb_envelopped_records/total_number_of_records*100}%) not applied (envelopped in another record).")
-    logger.info(f"{nb_records_applied} ({nb_records_applied/total_number_of_records*100}%) records applied.")
+    logger.info(f"{nb_of_records_calling_null} records ({nb_of_records_calling_null/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (genotype is null).")
+    logger.info(f"{nb_of_records_calling_REF} records ({nb_of_records_calling_REF/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (genotype is REF).")
+    logger.info(f"{nb_envelopped_records} records ({nb_envelopped_records/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (envelopped in another record).")
+    logger.info(f"{nb_records_applied} ({nb_records_applied/total_number_of_records*100 if total_number_of_records>0 else 0}%) records applied.")
