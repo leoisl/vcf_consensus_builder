@@ -137,7 +137,8 @@ def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
         data = (ref, alt)
         interval_already_in_tree = (start_pos, end_pos) in intervals_already_inserted
         if interval_already_in_tree:
-            raise InconsistentVCFException(f"[FATAL] There are more than one VCF record with POS = {start_pos} and REF = {ref}")
+            # raise InconsistentVCFException(f"[FATAL] There are more than one VCF record with POS = {start_pos} and REF = {ref}")
+            continue  # TODO: samtools bugs on this... For now, let's just ignore this interval. Check if we can do better later...
         interval_tree[start_pos:end_pos] = data
         intervals_already_inserted.add((start_pos, end_pos))
 
@@ -180,7 +181,10 @@ def get_super_records_from_interval_tree(interval_tree):
 def get_records_to_be_applied(df_vcf):
     interval_tree_with_valid_records = get_interval_tree_for_vcf_of_a_single_chrom(df_vcf)
     interval_tree_with_records_to_be_applied = get_super_records_from_interval_tree(interval_tree_with_valid_records)
-    ensure_there_are_no_overlapping_records(interval_tree_with_records_to_be_applied)
+
+    # TODO: samtools bugs on this... For now, let's just comment this out... Check if we can do better later...
+    # ensure_there_are_no_overlapping_records(interval_tree_with_records_to_be_applied)
+
     records_to_be_applied = []
     for interval in sorted(interval_tree_with_records_to_be_applied):
         records_to_be_applied.append({
@@ -250,7 +254,7 @@ def consensus(ref_fasta,
     global nb_of_records_calling_REF, nb_of_records_calling_null, nb_envelopped_records
     nb_records_applied = total_number_of_records - nb_of_records_calling_null - nb_of_records_calling_REF - nb_envelopped_records
     logger.info(f"{total_number_of_records} records in VCF.")
-    logger.info(f"{nb_of_records_calling_null} records ({nb_of_records_calling_null/total_number_of_records*100}%) not applied (genotype is null).")
-    logger.info(f"{nb_of_records_calling_REF} records ({nb_of_records_calling_REF/total_number_of_records*100}%) not applied (genotype is REF).")
-    logger.info(f"{nb_envelopped_records} records ({nb_envelopped_records/total_number_of_records*100}%) not applied (envelopped in another record).")
-    logger.info(f"{nb_records_applied} ({nb_records_applied/total_number_of_records*100}%) records applied.")
+    logger.info(f"{nb_of_records_calling_null} records ({nb_of_records_calling_null/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (genotype is null).")
+    logger.info(f"{nb_of_records_calling_REF} records ({nb_of_records_calling_REF/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (genotype is REF).")
+    logger.info(f"{nb_envelopped_records} records ({nb_envelopped_records/total_number_of_records*100 if total_number_of_records>0 else 0}%) not applied (envelopped in another record).")
+    logger.info(f"{nb_records_applied} ({nb_records_applied/total_number_of_records*100 if total_number_of_records>0 else 0}%) records applied.")
