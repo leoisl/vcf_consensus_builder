@@ -94,8 +94,9 @@ def consensus_segment(seq: str,
     return segment_seq, next_position
 
 
+gt_regex = re.compile(r'^(.+?)[/:]??')
 def get_gt_from_sample_info(sample_info: str):
-    gt_as_string = re.search(r'^(.+?)[/:]??', sample_info).group(1)
+    gt_as_string = gt_regex.search(sample_info).group(1)
     try:
         gt_as_int = int(gt_as_string)
         return gt_as_int
@@ -121,7 +122,7 @@ def get_interval_tree_for_vcf_of_a_single_chrom(df_vcf):
         start_pos = curr_var.POS
         ref = curr_var.REF
         end_pos = start_pos + len(ref)
-        sample_info = curr_var[-1]
+        sample_info = str(curr_var[-1])
         GT = get_gt_from_sample_info(sample_info)
         variant_should_not_be_applied = GT==-1 or GT==0
         if variant_should_not_be_applied:
